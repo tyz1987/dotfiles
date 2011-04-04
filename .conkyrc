@@ -1,0 +1,57 @@
+#avoid flicker
+double_buffer yes
+
+#own window to run simultanious 2 or more conkys
+own_window  yes
+own_window_transparent yes
+own_window_type desktop
+own_window_hints undecorate,sticky,skip_taskbar,skip_pager
+
+#borders
+draw_borders no
+border_margin 1
+
+#shades
+draw_shades yes
+
+# Stippled borders?
+stippled_borders 8
+
+# border margins
+border_margin 40
+
+# border width
+border_width 1
+
+#position
+gap_x 0
+gap_y 0
+alignment top_left
+
+#behaviour
+update_interval 1
+
+#colour
+default_color  8f8f8f
+#default_shade_color 000000
+own_window_colour 262626
+
+#font
+use_xft yes
+xftalpha 0.8
+override_utf8_locale yes
+xftfont Droid Mono:size=8
+
+#to prevent window from moving
+use_spacer right
+minimum_size 1600 0
+
+
+#mpd
+mpd_host 127.0.0.1
+mpd_port 6600
+
+minimum_size 1410 0
+
+TEXT
+Cpu: ${color e0e0e0}${font} ${freq}Mhz ${cpu}% ${goto 105}${cpubar 7,50}  | ${color} Mem: ${color e0e0e0}${font}${mem} ${membar 7,50} | ${color} Root: ${color e0e0e0}${font}${fs_free /} ${color} | ${color} Email: ${color e0e0e0}${execi 300 ~/.gmail.sh} | ${color} Up: ${color e0e0e0}${font}${uptime_short}${color} | ${color} Net: ${color e0e0e0}${font}${downspeed eth0}/s  ${goto 614} | ${color}${color e0e0e0}${upspeed eth0}/s ${goto 675} | ${color} Core Temps: ${color e0e0e0} ${execi 5 ~/showtemp.sh}  ${color} | ${if_running mpd}${if_mpd_playing} ${color e0e0e0} ${mpd_artist} - ${mpd_title} ${mpd_elapsed}/${mpd_length} $endif 

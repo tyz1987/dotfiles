@@ -1,0 +1,466 @@
+# Maybe OSS can be compatible with dmix:
+# http://alsa.opensrc.org/index.php/Dmix
+# http://forums.gentoo.org/viewtopic-t-856668.html
+# http://www.knoppix.net/forum/threads/25372-HowTo-ALSA-Dmix-OSS
+
+# dmix - plug:dmix supports 1-8 channels, and does use dmix!
+# Whereas surround51 doesn't use dmix
+# http://bbs.archlinux.org/viewtopic.php?pid=745946#p745946
+
+
+# cat /proc/asound/card0/pcm0p/sub0/hw_params
+# Output to hw:0,0 to keep at 44.1k rather than dmix's 48k
+# 44.1k stops dmix from working, though.
+
+
+# From https://bugs.launchpad.net/debian/+source/sdl-mixer1.2/+bug/66483
+# Not needed.
+#defaults.pcm.dmix_max_periods -1
+
+
+#defaults.pcm.rate_converter "samplerate_best"
+
+# See /usr/share/alsa/pcm/dmix.conf
+#defaults.dmix.period_time 0
+#defaults.dmix.periods 4
+#defaults.pcm.surround51.device "0"
+
+
+# From https://bugtrack.alsa-project.org/alsa-bug/view.php?id=1853
+# Posted at http://bbs.archlinux.org/viewtopic.php?id=95582
+# Is a dmix that actually works!
+pcm.dmixed {
+	type asym
+	playback.pcm {
+		# See plugin:dmix at http://www.alsa-project.org/alsa-doc/alsa-lib/pcm_plugins.html
+		type dmix
+		ipc_key 5678293
+		ipc_perm 0660
+		ipc_gid audio
+		#rate 48000  # Don't put the rate here! Otherwise it resets the rate & channels set below, as shown by:  cat /proc/asound/card0/pcm0p/sub0/hw_params
+		slave {
+			# 2 channels at 48k keeps skype happy? Not sure.
+			channels 2
+			pcm {
+				format S16_LE
+				rate 48000
+				type hw
+				card 0
+				device 0
+				subdevice 0
+			}
+
+			# Play with this value, if you get errors "unable to set buffer size" or "underrun occured"
+			# 4320 is effective minimum with hda-intel, but flash in firefox needs roughly 5000, otherwise flash may be silent.
+			# Needs to be 10k-ish, to stop buffer underruns in d1x-rebirth.
+
+			period_size 256
+			periods 16
+			buffer_size 16384
+
+			# Seems best
+			#period_size 256
+			#periods 16
+			#buffer_size 16384
+
+			# Old config
+			#buffer_size 10240
+			#period_size 2048
+
+			# Other options to maybe play with:
+			#period_time 2
+			#periods 2
+		}
+	}
+
+	capture.pcm "hw:0"
+}
+
+
+
+# Playing
+#pcm.!default {
+#	type asym
+#	playback.pcm "upmix_20to51_resample"
+#}
+
+
+# Check that e.g. ut2004 still works, if default is redefined.
+pcm.!default {
+	type plug
+	# Always output to all 6 channels, so the dmixer actually works if e.g. 6-channel is attempted to be started, while 2-channel is playing.
+	slave.pcm "dmixed"
+}
+
+pcm.!surround20 {
+	type plug
+	slave.pcm "dmixed"
+}
+
+pcm.!surround40 {
+	type plug
+	slave.pcm "dmixed"
+}
+
+pcm.!surround51 {
+	type plug
+	slave.pcm "dmixed"
+}
+
+
+# If get error "Slave PCM not usable", then need to use plug:
+# If get error "Cannot find rate converter", then install libsamplerate and alsa-plugins
+
+# Lunar Linux:  lin ladspa-bs2b
+# listplugins
+# analyseplugin bs2b
+pcm.bs2b {
+	type ladspa
+	path "/usr/lib/ladspa"
+	plugins {
+		0 {
+			id 4221  # Bauer stereophonic-to-binaural (4221/bs2b)
+			input {
+				controls [ 700 6 ]
+			}
+		}
+	}
+	# http://bbs.archlinux.org/viewtopic.php?id=95582
+	slave.pcm "plug:dmixed"
+}
+
+
+# speaker-test -D headphones -c 2 -t wav
+# audacious uses less CPU when running bs2b as a listed plugin, probably because of samplerate_best
+# Posted at http://bbs.archlinux.org/viewtopic.php?pid=626573#p626573
+pcm.headphones {
+	type rate
+	slave {
+		pcm "plug:bs2b"
+		rate 48000
+	}
+	# Choices: samplerate_best samplerate_medium samplerate samplerate_order samplerate_linear
+	converter "samplerate_medium"
+
+    hint {
+        show on
+        description "Headphones"
+    }
+}
+
+
+# https://wiki.archlinux.org/index.php/Skype
+pcm.skype {
+	type plug
+	slave.pcm "dmixed"
+	#slave.pcm "hw:0"
+
+    hint {
+        show on
+        description "Skype"
+    }
+}
+
+
+pcm.ch51dup {
+	slave.pcm "dmixed"
+	slave.channels 6
+	type route
+
+	# Front and rear
+	ttable.0.0 0.5
+	ttable.1.1 0.5
+	ttable.2.2 0.5
+	ttable.3.3 0.5
+
+	# Center and LFE
+	ttable.4.4 1
+	ttable.5.5 1
+
+	# Front left/right to center
+	ttable.0.4 0.5
+	ttable.1.4 0.5
+
+	# Front left/right to rear
+	ttable.0.2 0.5
+	ttable.1.3 0.5
+}
+
+
+
+# From http://marcansoft.com/blog/2009/06/acer-aspire-8930g-linux-audio-support/
+# To bring all the 8930g speakers into play.
+# Works in mplayer but not audacious - weird!
+# Have increased the volume, because mplayer is so quiet.
+pcm.stereo8930 {
+	type route
+	slave.pcm "dmixed"
+	slave.channels 6
+
+    hint {
+        show on
+        description "Stereo speakers 8930g"
+    }
+	ttable.0.0 1.5
+	ttable.1.1 1.5
+	ttable.0.2 1.5
+	ttable.1.3 1.5
+	ttable.0.4 0.3
+	ttable.1.4 0.3
+	ttable.0.5 1.0
+	ttable.1.5 1.0
+}
+
+
+# http://alsa.opensrc.org/SurroundSound
+# http://alsa.opensrc.org/index.php/Low-pass_filter_for_subwoofer_channel_(HOWTO)
+# Lunar:  lin ladspa tap-plugins swh-plugins cmt-plugins libsamplerate
+# Fedora:  yum install ladspa ladspa-blop-plugins ladspa-caps-plugins ladspa-cmt-plugins ladspa-swh-plugins ladspa-tap-plugins libsamplerate
+# Arch Linux:  pacman -S ladspa blop swh-plugins libsamplerate tap-plugins cmt
+# For id 1672 - 4 Pole Low-Pass Filter with Resonance (FCRCIA) (1672/lp4pole_fcrcia_oa), install blop-plugins
+# speaker-test -D upmix_20to51 -c 2 -t wav
+# Debugging:  speaker-test -D plug:lowpass_21to21 -c 3 -t wav
+# listplugins
+# analyseplugin cmt
+# http://plugin.org.uk/ladspa-swh/docs/ladspa-swh.html
+# http://forums.gentoo.org/viewtopic-p-4528619.html#4528619
+pcm.lowpass_21to21 {
+	type ladspa
+	slave.pcm upmix_21to51
+	# Set the path to ladspa, to fix this error:
+	# Playback open error: -2,No such file or directory
+	path "/usr/lib/ladspa"
+	channels 3
+	plugins {
+		0 {
+			id 1098  # Identity (Audio) (1098/identity_audio)
+			policy duplicate
+			input.bindings.0 "Input";
+			output.bindings.0 "Output";
+		}
+
+		#1 {
+		#	id 1052  # High-pass filter
+		#	policy none
+		#	input.bindings.0 "Input";
+		#	output.bindings.0 "Output";
+		#	input {
+		#		controls [ 300 ]
+		#	}
+		#}
+
+		#2 {
+		#	id 1052  # High-pass filter
+		#	policy none
+		#	input.bindings.1 "Input";
+		#	output.bindings.1 "Output";
+		#	input {
+		#		controls [ 300 ]
+		#	}
+		#}
+
+		#3 {
+		#	id 1051  # Low-pass filter.
+		#	policy none
+		#	input.bindings.2 "Input";
+		#	output.bindings.2 "Output";
+		#	input {
+		#		controls [ 300 ]
+		#	}
+		#}
+
+		# From http://alsa.opensrc.org/index.php/Low-pass_filter_for_subwoofer_channel_(HOWTO)
+		# Can be used instead of 1-3 above.
+		1 {
+			id 1672 # 4 Pole Low-Pass Filter with Resonance (FCRCIA) (1672/lp4pole_fcrcia_oa)
+			policy none
+			input.bindings.2 "Input";
+			output.bindings.2 "Output";
+			input {
+				controls [ 300 2 ]
+			}
+		}
+	}
+}
+
+
+# speaker-test -D upmix_20to51 -c 2 -t wav
+# In audacious:  upmix_20to51
+pcm.upmix_20to51 {
+	type plug
+	slave.pcm "lowpass_21to21"
+	slave.channels 3
+	ttable {
+		0.0     1       # left channel
+		1.1     1       # right channel
+		0.2     0.5     # mix left and right ...
+		1.2     0.5     # ... channel for subwoofer
+	}
+
+	# slave.rate 48000 makes CPU utilization 20% instead of 3%
+	# Can't hear the difference with Audigy4 anyway.
+	# slave.rate 44100 is 3%, so that proves audacious outputs 44100
+	#slave.rate 48000
+	#converter "samplerate"
+	#slave.rate_converter "samplerate_best"
+}
+
+
+# In audacious:  upmix_20to51_resample
+# aplay -D upmix_20to51_resample ~/alsa/samplerate-test/udial.wav
+pcm.upmix_20to51_resample {
+	type rate
+	slave {
+		pcm upmix_20to51
+		#format S32_LE
+		# Audigy4 upmixes to 48000 itself, and seems to use low-quality linear interpolation
+		rate 44100
+	}
+	# Choices: samplerate_best samplerate_medium samplerate samplerate_order samplerate_linear
+	# 8% CPU with samplerate_medium - good choice
+	converter "samplerate_medium"
+	#converter "samplerate_linear"
+    hint {
+        show on
+        description "20to51"
+    }
+}
+
+# Debugging:  speaker-test -D upmix_21to51 -c 3 -t wav
+pcm.upmix_21to51 {
+	type plug
+	# For ice1724:
+	#slave.pcm surround51-ice
+	# For Audigy:
+	slave.pcm "dmixed"
+	# http://bbs.archlinux.org/viewtopic.php?pid=745946#p745946
+	#slave.pcm dmixed:6
+	# For P5K ADI:
+	#slave.pcm surround51-adi
+	# Trying to pipe through Pulse Audio, to stop the clicks between songs.
+	# Can't get Pulse Audio to work like this.
+	#slave.pcm pulse
+	# Don't need to specify the number of channels.
+	slave.channels 6
+	ttable {
+		0.0     1       # front left
+		1.1     1       # front right
+		0.2     1       # rear left
+		1.3     1       # rear right
+
+		# Front left/right to center.
+		# Imbalanced because is to the left of the monitor!
+		# Would normally be 0.5 each.
+		0.4     0.5
+		1.4     0.5
+
+		# Subwoofer, more powerful to compensate for bass-removal from other speakers.
+		2.5     2
+    }
+}
+
+
+# Channels are wrong way around in doom! This fixes them.
+# http://www.linuxforen.de/forums/archive/index.php/t-206470.html
+# http://forums.seriouszone.com/showthread.php?t=49869&page=10
+# http://forums.gentoo.org/viewtopic-p-4173170.html#4173170
+# For Audigy 4
+# Weird, doom3 has crappy sound if I add an alsa rate converter.
+# Posted at http://ubuntuforums.org/showthread.php?t=1304228
+pcm.doom-surround51 {
+	slave.pcm "dmixed"
+	slave.channels 6
+	type route
+	ttable.0.0 1
+	ttable.1.1 1
+	ttable.2.4 1
+	ttable.3.5 1
+	ttable.4.2 1
+	ttable.5.3 1
+}
+
+
+pcm.doom3-8930g {
+	type plug
+	slave.pcm {
+		type dmix
+		ipc_key 1093  # Must be unique
+		ipc_key_add_uid false
+		ipc_perm 0660
+		slave {
+			pcm "hw:0,0"
+			rate 44100
+			channels 2
+			period_time 0
+			period_size 1024
+			buffer_time 0
+			# Doom 3 wants buffer_size 8192
+			# In ~/.doom3/base/autoexec.cfg
+			# And ~/.quake4/q4base/autoexec.cfg
+			# seta s_alsa_pcm "doom3-8930g"
+			buffer_size 8192
+		}
+	}
+}
+
+
+# From https://bbs.archlinux.org/viewtopic.php?id=99185
+pcm.movie {
+	type plug
+	slave.pcm "ladcomp_compressor";
+    hint {
+        show on
+        description "Movie Volume"
+    }
+}
+
+pcm.ladcomp_compressor {
+	type ladspa
+	slave.pcm "ladcomp_limiter";
+	path "/usr/lib/ladspa";
+	plugins [
+		{
+			label dysonCompress
+			input {
+				# peak limit, release time, fast ratio, ratio
+				controls [0 1 0.5 0.99]
+			}
+		}
+	]
+}
+
+pcm.ladcomp_limiter {
+	type ladspa
+	#slave.pcm "default"
+	slave.pcm "plug:movie8930"
+	path "/usr/lib/ladspa"
+	plugins [
+		{
+			label fastLookaheadLimiter
+			input {
+				# InputGain(Db) -20 -> +20 ; Limit (db) -20 -> 0 ; Release time (s) 0.01 -> 2
+				# also possible... 20 0 0.8
+				# If movie is too quiet, increase the first number.
+				controls [ 5 0 0.8  ]
+			}
+		}
+	]
+}
+
+pcm.movie8930 {
+	type route
+	#slave.pcm "dmixed"
+	# No need to use dmix
+	slave.pcm "hw:0"
+	slave.channels 6
+
+	ttable.0.0 1.0
+	ttable.1.1 1.0
+	ttable.2.2 1.0
+	ttable.3.3 1.0
+	ttable.4.4 1.0
+	ttable.0.5 0.6
+	ttable.1.5 0.6
+	ttable.4.5 0.6
+	ttable.5.5 0.8
+}

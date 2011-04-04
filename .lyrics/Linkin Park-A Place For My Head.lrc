@@ -1,0 +1,29 @@
+<HTML><HEAD>
+<TITLE>ERROR: The requested URL could not be retrieved</TITLE>
+</HEAD><BODY>
+<H1>ERROR</H1>
+<H2>The requested URL could not be retrieved</H2>
+<HR>
+<P>
+While trying to retrieve the URL:
+<!--
+HREF Empty to put direct URL instead of relative
+-->
+<A HREF="">viewlyrics.com/lrc/2/L/linkin%20park%20-%20a%20place%20for%20my%20head.lrc</A>
+<P>
+The following error was encountered:
+<UL>
+<LI>
+<STRONG>
+Request Timeout
+</STRONG>
+</UL>
+
+<P>
+The system returned:
+<PRE><I>     </I></PRE>
+
+<P>
+A Timeout occurred while waiting to read data from the network.  The network
+or server may be down or congested.  Please retry your request.
+</BODY></HTML>
